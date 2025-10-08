@@ -18,10 +18,10 @@ const ProductModal = ({ isOpen, onClose, onSave, product = null }) => {
   useEffect(() => {
     if (product) {
       setFormData({
-        nombre: product.name || '',
-        descripcion: product.description || '',
-        precio_costo: product.price_costo || '',
-        precio_venta: product.price || '',
+        nombre: product.nombre || '',
+        descripcion: product.descripcion || '',
+        precio_costo: product.precio_costo || '',
+        precio_venta: product.precio_venta || '',
         sku: product.sku || '',
         categoria: product.categoria || '',
         image_url: product.image_url || '',
@@ -65,8 +65,16 @@ const ProductModal = ({ isOpen, onClose, onSave, product = null }) => {
     }
   };
 
-  const handleSubmit = () => {
-    onSave(formData, imageFile);
+  const handleSubmit = async () => {
+    const dataToSave = { ...formData };
+
+    // Validar que la URL de la imagen sea válida o esté vacía
+    const urlPattern = new RegExp('^(https?:\\/\\/|data:image\\/)');
+    if (dataToSave.image_url && !urlPattern.test(dataToSave.image_url)) {
+      dataToSave.image_url = '';
+    }
+
+    await onSave(dataToSave, imageFile);
     onClose();
   };
 

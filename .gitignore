@@ -2,3 +2,4 @@ node_modules/
 dist/
 .env
 GEMINI.md
+database_schema.sql

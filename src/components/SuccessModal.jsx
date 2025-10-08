@@ -1,8 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Modal from './Modal';
 import { CheckCircle } from 'lucide-react';
 
 function SuccessModal({ isOpen, onClose, message }) {
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 2000); // 2 segundos
+
+      return () => clearTimeout(timer); // Limpiar el temporizador si el componente se desmonta o cierra antes
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (

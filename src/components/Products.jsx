@@ -1,56 +1,108 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Edit, Trash2, Search } from 'lucide-react';
 import ProductModal from './ProductModal';
 import DeleteProductModal from './DeleteProductModal';
-
-// Mock Data for products
-const mockProducts = [
-  { id: 1, name: 'Laptop Gamer XYZ', price_costo: 1000.00, price: 1200.00, stock: 15, sku: 'LPTGMR001', categoria: 'Electrónica', description: 'Potente laptop para juegos de última generación.', image_url: '' },
-  { id: 2, name: 'Mouse Inalámbrico Pro', price_costo: 20.00, price: 25.00, stock: 50, sku: 'MSINLMB002', categoria: 'Periféricos', description: 'Mouse ergonómico con alta precisión.', image_url: '' },
-  { id: 3, name: 'Teclado Mecánico RGB', price_costo: 60.00, price: 80.00, stock: 30, sku: 'TCLDRGB003', categoria: 'Periféricos', description: 'Teclado con switches mecánicos y retroiluminación RGB.', image_url: '' },
-  { id: 4, name: 'Monitor Curvo 27 pulgadas', price_costo: 250.00, price: 300.00, stock: 20, sku: 'MNTRCRV004', categoria: 'Monitores', description: 'Monitor con panel curvo para una experiencia inmersiva.', image_url: '' },
-  { id: 5, name: 'Webcam Full HD', price_costo: 35.00, price: 45.00, stock: 70, sku: 'WBCMHD005', categoria: 'Periféricos', description: 'Cámara web de alta definición para videollamadas.', image_url: '' },
-  { id: 6, name: 'Auriculares Gaming', price_costo: 45.00, price: 60.00, stock: 40, sku: 'ADFGMG006', categoria: 'Audio', description: 'Auriculares con sonido envolvente y micrófono retráctil.', image_url: '' },
-  { id: 7, name: 'Disco Duro Externo 1TB', price_costo: 55.00, price: 70.00, stock: 60, sku: 'DDEXT1TB007', categoria: 'Almacenamiento', description: 'Almacenamiento portátil de alta velocidad.', image_url: '' },
-  { id: 8, name: 'Router Wi-Fi 6', price_costo: 70.00, price: 90.00, stock: 25, sku: 'RTWIFI6008', categoria: 'Redes', description: 'Router de última generación con tecnología Wi-Fi 6.', image_url: '' },
-  
-];
+import SuccessModal from './SuccessModal'; // Importar el modal de éxito
+import boxIcon from '../assets/box.svg';
 
 const Products = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [products, setProducts] = useState(mockProducts);
+  const [products, setProducts] = useState([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false); // Estado para el modal de éxito
+  const [successMessage, setSuccessMessage] = useState(''); // Mensaje para el modal de éxito
+
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch('http://localhost:4000/api/products');
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const data = await response.json();
+      setProducts(data);
+    } catch (error) {
+      console.error("Error al obtener los productos:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.description.toLowerCase().includes(searchTerm.toLowerCase())
+    (product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleAddProduct = (newProductData, imageFile) => {
-    console.log('Agregar Producto:', newProductData, imageFile);
-    // Lógica para agregar el producto (por ahora solo mock)
-    const newId = Math.max(...products.map(p => p.id)) + 1;
-    setProducts(prev => [...prev, { id: newId, ...newProductData, image_url: imageFile ? URL.createObjectURL(imageFile) : '' }]);
+  const handleAddProduct = async (newProductData, imageFile) => {
+    try {
+      const response = await fetch('http://localhost:4000/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newProductData),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al agregar el producto');
+      }
+      
+      setIsAddModalOpen(false); // Cierra el modal de producto
+      setSuccessMessage(result.message); // Guarda mensaje de éxito
+      setIsSuccessModalOpen(true); // Abre modal de éxito
+      fetchProducts(); // Recargar productos para mostrar el nuevo
+    } catch (error) {
+      console.error("Error en handleAddProduct:", error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
-  const handleEditProduct = (updatedProductData, imageFile) => {
-    console.log('Editar Producto:', selectedProduct.id, updatedProductData, imageFile);
-    // Lógica para editar el producto (por ahora solo mock)
-    setProducts(prev => prev.map(p => 
-      p.id === selectedProduct.id 
-        ? { ...p, ...updatedProductData, image_url: imageFile ? URL.createObjectURL(imageFile) : updatedProductData.image_url } 
-        : p
-    ));
+  const handleEditProduct = async (updatedProductData, imageFile) => {
+    try {
+      const response = await fetch(`http://localhost:4000/api/products/${selectedProduct.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedProductData),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        fetchProducts();
+        setIsEditModalOpen(false);
+        setSuccessMessage(result.message);
+        setIsSuccessModalOpen(true);
+      } else {
+        throw new Error(result.error || 'Error al editar el producto');
+      }
+    } catch (error) {
+      console.error('Error editing product:', error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
-  const handleDeleteProduct = (productId) => {
-    console.log('Eliminar Producto:', productId);
-    // Lógica para eliminar el producto (por ahora solo mock)
-    setProducts(prev => prev.filter(p => p.id !== productId));
-    setIsDeleteModalOpen(false);
+  const handleDeleteProduct = async (productId) => {
+    try {
+      const response = await fetch(`http://localhost:4000/api/products/${productId}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      if (response.ok) {
+        fetchProducts();
+        setIsDeleteModalOpen(false);
+        setSuccessMessage(result.message);
+        setIsSuccessModalOpen(true);
+      } else {
+        throw new Error(result.error || 'Error al eliminar el producto');
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
   const openAddModal = () => {
@@ -101,13 +153,13 @@ const Products = () => {
                   ID
                 </th>
                 <th className="py-4 px-6 border-b-2 border-havelock-blue-200 bg-havelock-blue-50 text-left text-sm font-semibold text-havelock-blue-600 uppercase tracking-wider">
+                  Imagen
+                </th>
+                <th className="py-4 px-6 border-b-2 border-havelock-blue-200 bg-havelock-blue-50 text-left text-sm font-semibold text-havelock-blue-600 uppercase tracking-wider">
                   Nombre
                 </th>
                 <th className="py-4 px-6 border-b-2 border-havelock-blue-200 bg-havelock-blue-50 text-left text-sm font-semibold text-havelock-blue-600 uppercase tracking-wider">
                   Precio Venta
-                </th>
-                <th className="py-4 px-6 border-b-2 border-havelock-blue-200 bg-havelock-blue-50 text-left text-sm font-semibold text-havelock-blue-600 uppercase tracking-wider">
-                  Stock
                 </th>
                 <th className="py-4 px-6 border-b-2 border-havelock-blue-200 bg-havelock-blue-50 text-center text-sm font-semibold text-havelock-blue-600 uppercase tracking-wider rounded-tr-lg">
                   Acciones
@@ -118,9 +170,16 @@ const Products = () => {
               {filteredProducts.map(product => (
                 <tr key={product.id} className="hover:bg-havelock-blue-50 transition-colors duration-200">
                   <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">{product.id}</td>
-                  <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">{product.name}</td>
-                  <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">${product.price.toFixed(2)}</td>
-                  <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">{product.stock}</td>
+                  <td className="py-3 px-6 border-b border-havelock-blue-100">
+                    <img 
+                      src={product.image_url || boxIcon} 
+                      alt={product.name} 
+                      className="w-16 h-16 object-cover rounded-md border border-gray-200" 
+                      onError={(e) => { e.target.onerror = null; e.target.src = boxIcon; }}
+                    />
+                  </td>
+                  <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700 font-medium">{product.name}</td>
+                  <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">${(product.precio_venta || 0).toFixed(2)}</td>
                   <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-center">
                     <button 
                       onClick={() => openEditModal(product)}
@@ -163,8 +222,14 @@ const Products = () => {
       <DeleteProductModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        onDelete={handleDeleteProduct}
+        onDelete={() => handleDeleteProduct(selectedProduct.id)}
         product={selectedProduct}
+      />
+
+      <SuccessModal 
+        isOpen={isSuccessModalOpen}
+        onClose={() => setIsSuccessModalOpen(false)}
+        message={successMessage}
       />
     </div>
   );

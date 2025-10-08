@@ -8,6 +8,7 @@ import {
   BarChart3,
   Users,
   DatabaseBackup,
+  LayoutGrid,
 } from 'lucide-react';
 
 function Layout() {
@@ -32,6 +33,13 @@ function Layout() {
           to="/products"
           active={isActive('/products')}
           onClick={() => navigate('/products')}
+        />
+        <SidebarItem
+          icon={<LayoutGrid size={20} />}
+          text="Categorías"
+          to="/categories"
+          active={isActive('/categories')}
+          onClick={() => navigate('/categories')}
         />
         <SidebarItem
           icon={<ShoppingCart size={20} />}

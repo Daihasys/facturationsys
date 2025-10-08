@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import Products from './components/Products';
 import Sales from './components/Sales';
+import Categories from './components/Categories';
 import './index.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -16,6 +17,7 @@ root.render(
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="products" element={<Products />} />
+          <Route path="categories" element={<Categories />} />
           <Route path="sales" element={<Sales />} />
           {/* Future routes for other modules will go here */}
         </Route>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Edit, Trash2, Search } from 'lucide-react';
-import ProductModal from './ProductModal';
-import DeleteProductModal from './DeleteProductModal';
-import SuccessModal from './SuccessModal'; // Importar el modal de éxito
+import ProductModal from './modals/ProductModal';
+import DeleteProductModal from './modals/DeleteProductModal';
+import SuccessModal from './modals/SuccessModal'; // Importar el modal de éxito
 import boxIcon from '../assets/box.svg';
 
 const Products = () => {

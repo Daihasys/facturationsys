@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Edit, Trash2, Search } from 'lucide-react';
-import CategoryModal from './CategoryModal';
-import DeleteCategoryModal from './DeleteCategoryModal';
-import SuccessModal from './SuccessModal';
+import CategoryModal from './modals/CategoryModal';
+import DeleteCategoryModal from './modals/DeleteCategoryModal';
+import SuccessModal from './modals/SuccessModal';
 
 const Categories = () => {
   const [searchTerm, setSearchTerm] = useState('');

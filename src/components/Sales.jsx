@@ -1,24 +1,35 @@
-import React, { useState } from 'react';
-import { Search, PlusCircle, Trash2, ShoppingCart, Plus, Minus } from 'lucide-react';
-
-// Mock Data
-const productsData = [
-  { id: 1, name: 'Mouse', price: 25.00, stock: 150 },
-  { id: 2, name: 'Teclado', price: 45.00, stock: 100 },
-  { id: 3, name: 'Monitor', price: 250.00, stock: 50 },
-  { id: 4, name: 'Laptop', price: 1200.00, stock: 25 },
-  { id: 5, name: 'Webcam', price: 50.00, stock: 75 },
-  { id: 6, name: 'Auriculares', price: 75.00, stock: 80 },
-  { id: 7, name: 'Impresora', price: 150.00, stock: 30 },
-  { id: 8, name: 'Hub USB', price: 20.00, stock: 200 },
-];
+import React, { useState, useEffect } from 'react';
+import { Search, PlusCircle, Trash2, ShoppingCart, Plus, Minus, Package } from 'lucide-react';
+import SuccessModal from './modals/SuccessModal';
 
 function Sales() {
+  const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [quantities, setQuantities] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch('http://localhost:4000/api/products');
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const data = await response.json();
+      setProducts(data);
+    } catch (error) {
+      console.error("Error al obtener los productos:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const handleQuantityChange = (productId, quantity) => {
-    setQuantities(prev => ({ ...prev, [productId]: quantity }));
+    const newQuantity = Math.max(1, parseInt(quantity, 10) || 1);
+    setQuantities(prev => ({ ...prev, [productId]: newQuantity }));
   };
 
   const incrementQuantity = (productId) => {
@@ -31,16 +42,62 @@ function Sales() {
 
   const addToCart = (product) => {
     const quantity = quantities[product.id] || 1;
-    // Check if item is already in cart
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {
-      setCart(cart.map(item => 
+      setCart(cart.map(item =>
         item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
       ));
     } else {
-      setCart([...cart, { ...product, quantity }]);
+      setCart([...cart, { ...product, price: product.precio_venta, quantity }]);
     }
   };
+
+  const removeFromCart = (productId) => {
+    setCart(cart.filter(item => item.id !== productId));
+  };
+
+  const handleProcessSale = async () => {
+    if (cart.length === 0) {
+      alert("El carrito está vacío.");
+      return;
+    }
+
+    const saleData = {
+      userId: 1, // Hardcoded user ID for now
+      cart: cart,
+      total: total
+    };
+
+    try {
+      const response = await fetch('http://localhost:4000/api/sales', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(saleData),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al procesar la venta');
+      }
+
+      setSuccessMessage(result.message);
+      setIsSuccessModalOpen(true);
+      setCart([]);
+      setQuantities({});
+      // Optionally, refresh products to update stock, once that's implemented
+      // fetchProducts(); 
+    } catch (error) {
+      console.error("Error en handleProcessSale:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const tax = subtotal * 0.16;
@@ -48,16 +105,18 @@ function Sales() {
 
   return (
     <div className="p-6 min-h-screen">
-      <h1 className="text-5xl font-bold text-gray-800 mb-8 ml-4">Modulo de Ventas</h1>
+      <h1 className="text-5xl font-bold text-gray-800 mb-8 ml-4">Módulo de Ventas</h1>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Product List */}
         <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-lg flex flex-col h-[86vh] transition-all duration-300 hover:shadow-[0px_0px_18px_0px_#696969]">
           <div className="relative mb-4">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-havelock-blue-400" />
-            <input 
-              type="text" 
-              placeholder="Buscar producto..." 
+            <input
+              type="text"
+              placeholder="Buscar producto..."
               className="pl-12 pr-4 py-3 border border-havelock-blue-200 rounded-full w-full focus:outline-none focus:ring-2 focus:ring-havelock-blue-400"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <div className="flex justify-between items-center mb-4">
@@ -65,21 +124,32 @@ function Sales() {
           </div>
           <div className="flex-grow overflow-y-auto pr-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {productsData.map((product) => (
+              {filteredProducts.map((product) => (
                 <div key={product.id} className="bg-gray-50 p-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 flex flex-col">
-                  <div className="w-full h-24 bg-havelock-blue-100 rounded-lg mb-3"></div>
+                  <div className="w-full h-24 bg-havelock-blue-200 rounded-lg mb-3 flex items-center justify-center">
+                    {product.image_url ? (
+                      <img 
+                        src={product.image_url}
+                        alt={product.name} 
+                        className="w-full h-full object-cover rounded-lg" 
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <Package size={48} className="text-white" />
+                    )}
+                  </div>
                   <h3 className="font-semibold text-sm mb-1">{product.name}</h3>
-                  <p className="text-gray-500 text-xs mb-3">${product.price.toFixed(2)}</p>
+                  <p className="text-gray-500 text-xs mb-3">${product.precio_venta.toFixed(2)}</p>
                   <div className="mt-auto">
                     <div className="flex items-center justify-center space-x-2">
                       <button onClick={() => decrementQuantity(product.id)} className="bg-havelock-blue-400 text-white rounded-full w-7 h-7 flex items-center justify-center hover:bg-havelock-blue-500 transition-colors">
                         <Minus size={16} />
                       </button>
-                      <input 
-                        type="text" 
-                        value={quantities[product.id] || 1} 
-                        onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value, 10) || 1)}
-                        className="w-10 text-center bg-transparent font-semibold text-gray-700" 
+                      <input
+                        type="text"
+                        value={quantities[product.id] || 1}
+                        onChange={(e) => handleQuantityChange(product.id, e.target.value)}
+                        className="w-10 text-center bg-transparent font-semibold text-gray-700"
                       />
                       <button onClick={() => incrementQuantity(product.id)} className="bg-havelock-blue-400 text-white rounded-full w-7 h-7 flex items-center justify-center hover:bg-havelock-blue-500 transition-colors">
                         <Plus size={16} />
@@ -111,7 +181,7 @@ function Sales() {
                     <h4 className="font-semibold text-sm">{item.name}</h4>
                     <p className="text-xs text-gray-500">${item.price.toFixed(2)} x {item.quantity}</p>
                   </div>
-                  <button className="text-red-500 hover:text-red-700 transition-colors">
+                  <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 transition-colors">
                     <Trash2 size={18} />
                   </button>
                 </div>
@@ -132,12 +202,17 @@ function Sales() {
               <span>Total</span>
               <span>${total.toFixed(2)}</span>
             </div>
-            <button className="w-full bg-havelock-blue-400 text-white py-3 rounded-full mt-6 hover:bg-havelock-blue-500 transition-colors text-lg font-semibold">
+            <button onClick={handleProcessSale} className="w-full bg-havelock-blue-400 text-white py-3 rounded-full mt-6 hover:bg-havelock-blue-500 transition-colors text-lg font-semibold">
               Procesar Venta
             </button>
           </div>
         </div>
       </div>
+      <SuccessModal
+        isOpen={isSuccessModalOpen}
+        onClose={() => setIsSuccessModalOpen(false)}
+        message={successMessage}
+      />
     </div>
   );
 }

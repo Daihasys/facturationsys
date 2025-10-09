@@ -18,8 +18,8 @@ const ProductModal = ({ isOpen, onClose, onSave, product = null }) => {
   useEffect(() => {
     if (product) {
       setFormData({
-        nombre: product.nombre || '',
-        descripcion: product.descripcion || '',
+        nombre: product.name || '',
+        descripcion: product.description || '',
         precio_costo: product.precio_costo || '',
         precio_venta: product.precio_venta || '',
         sku: product.sku || '',

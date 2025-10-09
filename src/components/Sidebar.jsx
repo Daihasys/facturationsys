@@ -6,7 +6,7 @@ import userIcon from "../assets/user.svg"
 
 
 // Contexto compartido para saber si la barra lateral está expandida
-const SidebarContext = createContext()
+export const SidebarContext = createContext()
 
 export default function Sidebar({ children }) {
   // Estado local para controlar si la barra lateral está abierta o colapsada

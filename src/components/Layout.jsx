@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar, { SidebarItem } from './Sidebar';
+import { SidebarDropdown } from './SidebarDropdown';
 import {
   LayoutDashboard,
   Package,
@@ -16,6 +17,7 @@ function Layout() {
   const location = useLocation();
 
   const isActive = (path) => location.pathname === path;
+  const isSalesActive = () => location.pathname.startsWith('/sales');
 
   return (
     <div className="flex min-h-screen bg-havelock-blue-50">
@@ -41,13 +43,25 @@ function Layout() {
           active={isActive('/categories')}
           onClick={() => navigate('/categories')}
         />
-        <SidebarItem
+        <SidebarDropdown
           icon={<ShoppingCart size={20} />}
           text="Ventas"
-          to="/sales"
-          active={isActive('/sales')}
-          onClick={() => navigate('/sales')}
-        />
+          active={isSalesActive()}
+        >
+          <SidebarItem
+            text="Listado de Ventas"
+            to="/sales/list"
+            active={isActive('/sales/list')}
+            onClick={() => navigate('/sales/list')}
+          />
+          <SidebarItem
+            text="Generar Venta"
+            to="/sales"
+            active={isActive('/sales')}
+            onClick={() => navigate('/sales')}
+          />
+          
+        </SidebarDropdown>
         <SidebarItem
           icon={<BarChart3 size={20} />}
           text="Reportes"

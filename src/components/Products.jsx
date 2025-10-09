@@ -122,7 +122,7 @@ const Products = () => {
 
   return (
     <div className="p-4 sm:p-6 bg-havelock-blue-50 min-h-screen">
-      <h1 className="text-5xl font-bold text-gray-800 mb-8 ml-4">Modulo de Productos</h1>
+      <h1 className="text-5xl font-bold text-gray-800 mb-8 ml-4">Módulo de Productos</h1>
       <div className="bg-white p-4 sm:p-8 rounded-xl shadow-xl transition-all duration-300 hover:shadow-[0px_0px_18px_0px_#696969]">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
         <h2 className="text-3xl font-bold text-havelock-blue-400 mb-4 sm:mb-0">Gestión de Productos</h2>
@@ -159,6 +159,9 @@ const Products = () => {
                   Nombre
                 </th>
                 <th className="py-4 px-6 border-b-2 border-havelock-blue-200 bg-havelock-blue-50 text-left text-sm font-semibold text-havelock-blue-600 uppercase tracking-wider">
+                  Descripción
+                </th>
+                <th className="py-4 px-6 border-b-2 border-havelock-blue-200 bg-havelock-blue-50 text-left text-sm font-semibold text-havelock-blue-600 uppercase tracking-wider">
                   Precio Venta
                 </th>
                 <th className="py-4 px-6 border-b-2 border-havelock-blue-200 bg-havelock-blue-50 text-center text-sm font-semibold text-havelock-blue-600 uppercase tracking-wider rounded-tr-lg">
@@ -179,6 +182,7 @@ const Products = () => {
                     />
                   </td>
                   <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700 font-medium">{product.name}</td>
+                  <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-500 max-w-sm">{product.description || 'N/A'}</td>
                   <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">${(product.precio_venta || 0).toFixed(2)}</td>
                   <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-center">
                     <button 
@@ -198,7 +202,7 @@ const Products = () => {
               ))}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="py-6 text-center text-gray-500 text-lg">No se encontraron productos.</td>
+                  <td colSpan="6" className="py-6 text-center text-gray-500 text-lg">No se encontraron productos.</td>
                 </tr>
               )}
             </tbody>

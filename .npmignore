@@ -1,0 +1,38 @@
+# Files to exclude when npm packages/publishes
+# (not really needed for Electron apps, but silences the warning)
+
+# Source files (only dist is needed)
+src/
+
+# Development configs
+webpack.config.js
+tailwind.config.js
+postcss.config.js
+.babelrc
+.eslintrc*
+
+# Git files
+.git/
+.gitignore
+
+# Documentation
+README.md
+GEMINI.md
+*.md
+
+# Test files
+test/
+tests/
+__tests__/
+*.test.js
+*.spec.js
+
+# Development tools
+.vscode/
+.idea/
+
+# Environment (should be configured per installation)
+.env.example
+
+# Logs
+*.log

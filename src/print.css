@@ -1,0 +1,52 @@
+/* src/print.css */
+
+@media print {
+  /* Ocultar todo por defecto */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Mostrar solo el contenedor del reporte y su contenido */
+  .printable-area, .printable-area * {
+    visibility: visible;
+  }
+
+  /* Posicionar el contenedor del reporte en la parte superior de la página */
+  .printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+  }
+
+  /* Ocultar botones y otros elementos no deseados dentro del área imprimible */
+  .no-print, .no-print * {
+    display: none !important;
+  }
+
+  /* Estilos para la tabla para que se vea bien en el documento impreso */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12pt;
+  }
+
+  th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+  }
+
+  th {
+    background-color: #f2f2f2;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+}

@@ -1,5 +1,38 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
+out/
+build/
+
+# Environment and secrets
 .env
+.env.local
+.env.*.local
+
+# Database (production data should not be in repo)
+database/*.db
+database/backups/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+
+# Documentation/Notes
 GEMINI.md
-database_schema.sql
+*.md.bak

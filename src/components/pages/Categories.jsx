@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Edit, Trash2, Search } from 'lucide-react';
-import CategoryModal from './modals/CategoryModal';
-import DeleteCategoryModal from './modals/DeleteCategoryModal';
-import SuccessModal from './modals/SuccessModal';
+import CategoryModal from '../modals/CategoryModal';
+import DeleteCategoryModal from '../modals/DeleteCategoryModal';
+import SuccessModal from '../modals/SuccessModal';
+import ErrorModal from '../modals/ErrorModal';
+import { useAuth } from '../../context/AuthContext';
 
 const Categories = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -13,36 +15,52 @@ const Categories = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const { token, hasPermission } = useAuth();
+
+  const getHeaders = () => ({
+    'Content-Type': 'application/json',
+    'x-auth-token': token,
+  });
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:4000/api/categories');
+      const response = await fetch('http://localhost:4000/api/categories', { headers: getHeaders() });
+      if (!response.ok) {
+        // Don't throw an error, just set categories to empty array if unauthorized
+        setCategories([]);
+        throw new Error('No tienes permiso para ver las categorías.');
+      }
       const data = await response.json();
-      setCategories(data);
+      setCategories(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories([]); // Ensure it's an array on error
     }
   };
 
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    if (hasPermission('categories:read')) {
+      fetchCategories();
+    }
+  }, [token]);
 
-  const filteredCategories = categories.filter(category =>
+  const filteredCategories = Array.isArray(categories) ? categories.filter(category =>
     (category.name && category.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (category.description && category.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  ) : [];
 
   const handleAddCategory = async (newCategoryData) => {
     try {
       const response = await fetch('http://localhost:4000/api/categories', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(newCategoryData),
       });
       const result = await response.json();
       if (response.ok) {
-        fetchCategories(); // Refresh the list
+        fetchCategories();
         setIsAddModalOpen(false);
         setSuccessMessage(result.message);
         setIsSuccessModalOpen(true);
@@ -59,12 +77,12 @@ const Categories = () => {
     try {
       const response = await fetch(`http://localhost:4000/api/categories/${selectedCategory.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify(updatedCategoryData),
       });
       const result = await response.json();
       if (response.ok) {
-        fetchCategories(); // Refresh the list
+        fetchCategories();
         setIsEditModalOpen(false);
         setSuccessMessage(result.message);
         setIsSuccessModalOpen(true);
@@ -81,19 +99,32 @@ const Categories = () => {
     try {
       const response = await fetch(`http://localhost:4000/api/categories/${categoryId}`, {
         method: 'DELETE',
+        headers: getHeaders(),
       });
       const result = await response.json();
+
       if (response.ok) {
-        fetchCategories(); // Refresh the list
+        fetchCategories();
         setIsDeleteModalOpen(false);
         setSuccessMessage(result.message);
         setIsSuccessModalOpen(true);
       } else {
-        throw new Error(result.error || 'Error al eliminar la categoría');
+        // Manejar error específico de categoría con productos
+        if (result.error === 'CATEGORY_HAS_PRODUCTS') {
+          setIsDeleteModalOpen(false);
+          setErrorMessage(
+            `No se puede eliminar "${result.categoryName}" porque tiene ${result.count} producto(s) asociado(s).\n\nPrimero elimine o reasigne los productos a otra categoría.`
+          );
+          setIsErrorModalOpen(true);
+        } else {
+          throw new Error(result.error || 'Error al eliminar la categoría');
+        }
       }
     } catch (error) {
       console.error('Error deleting category:', error);
-      alert(`Error: ${error.message}`);
+      setIsDeleteModalOpen(false);
+      setErrorMessage(`Error al eliminar la categoría: ${error.message}`);
+      setIsErrorModalOpen(true);
     }
   };
 
@@ -112,6 +143,14 @@ const Categories = () => {
     setIsDeleteModalOpen(true);
   };
 
+  if (!hasPermission('categories:read')) {
+    return (
+      <div className="p-4 sm:p-6 bg-havelock-blue-50 min-h-screen flex items-center justify-center">
+        <h1 className="text-3xl font-bold text-red-500">No tienes permiso para ver esta sección.</h1>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 bg-havelock-blue-50 min-h-screen">
       <h1 className="text-5xl font-bold text-gray-800 mb-8 ml-4">Módulo de Categorías</h1>
@@ -129,14 +168,16 @@ const Categories = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <button
-              onClick={openAddModal}
-              className="bg-havelock-blue-300 text-white px-4 py-2 rounded-full hover:bg-havelock-blue-400 focus:outline-none focus:ring-2 focus:ring-havelock-blue-200 focus:ring-opacity-50 w-full sm:w-auto"
-            >
-              Añadir Categoría
-            </button>
+            {hasPermission('categories:create') && (
+              <button
+                onClick={openAddModal}
+                className="bg-havelock-blue-300 text-white px-4 py-2 rounded-full hover:bg-havelock-blue-400 focus:outline-none focus:ring-2 focus:ring-havelock-blue-200 focus:ring-opacity-50 w-full sm:w-auto"
+              >
+                Añadir Categoría
+              </button>
+            )}
           </div>
-        </div>  
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-havelock-blue-200">
             <thead>
@@ -162,18 +203,22 @@ const Categories = () => {
                   <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">{category.name}</td>
                   <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">{category.description}</td>
                   <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-center">
-                    <button 
-                      onClick={() => openEditModal(category)}
-                      className="text-havelock-blue-400 hover:text-havelock-blue-500 mr-4 transition-colors"
-                    >
-                      <Edit size={20} />
-                    </button>
-                    <button 
-                      onClick={() => openDeleteModal(category)}
-                      className="text-red-500 hover:text-red-700 transition-colors"
-                    >
-                      <Trash2 size={20} />
-                    </button>
+                    {hasPermission('categories:update') && (
+                      <button
+                        onClick={() => openEditModal(category)}
+                        className="text-havelock-blue-400 hover:text-havelock-blue-500 mr-4 transition-colors"
+                      >
+                        <Edit size={20} />
+                      </button>
+                    )}
+                    {hasPermission('categories:delete') && (
+                      <button
+                        onClick={() => openDeleteModal(category)}
+                        className="text-red-500 hover:text-red-700 transition-colors"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -187,30 +232,36 @@ const Categories = () => {
         </div>
       </div>
 
-      <CategoryModal 
+      {hasPermission('categories:create') && <CategoryModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSave={handleAddCategory}
-      />
+      />}
 
-      <CategoryModal 
+      {hasPermission('categories:update') && <CategoryModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleEditCategory}
         category={selectedCategory}
-      />
+      />}
 
-      <DeleteCategoryModal
+      {hasPermission('categories:delete') && <DeleteCategoryModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        onDelete={handleDeleteCategory}
+        onDelete={() => handleDeleteCategory(selectedCategory.id)}
         category={selectedCategory}
-      />
+      />}
 
       <SuccessModal
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
         message={successMessage}
+      />
+
+      <ErrorModal
+        isOpen={isErrorModalOpen}
+        onClose={() => setIsErrorModalOpen(false)}
+        message={errorMessage}
       />
     </div>
   );

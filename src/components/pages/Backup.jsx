@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DatabaseBackup, History } from 'lucide-react';
-import SuccessModal from './modals/SuccessModal';
-import RestoreBackupModal from './modals/RestoreBackupModal';
+import SuccessModal from '../modals/SuccessModal';
+import RestoreBackupModal from '../modals/RestoreBackupModal';
 
 const Backup = () => {
   const [backups, setBackups] = useState([]);
@@ -85,7 +85,7 @@ const Backup = () => {
     <div className="p-4 sm:p-6 bg-havelock-blue-50 min-h-screen">
       <h1 className="text-5xl font-bold text-gray-800 mb-8 ml-4">Módulo de Backups</h1>
       <div className="bg-white p-4 sm:p-8 rounded-xl shadow-xl transition-all duration-300 hover:shadow-[0px_0px_18px_0px_#696969]">
-        
+
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
           <h2 className="text-3xl font-bold text-havelock-blue-400 mb-4 sm:mb-0">Gestión de Copias de Seguridad</h2>
           <button
@@ -119,7 +119,7 @@ const Backup = () => {
                     <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-500">{backup.filename}</td>
                     <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">{formatFileSize(backup.size)}</td>
                     <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-center">
-                      <button 
+                      <button
                         onClick={() => openRestoreModal(backup.filename)}
                         className="bg-amber-400 hover:bg-amber-500 text-white font-semibold py-2 px-4 rounded-full flex items-center gap-2 mx-auto transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-amber-300"
                       >
@@ -138,7 +138,7 @@ const Backup = () => {
 
       </div>
 
-      <SuccessModal 
+      <SuccessModal
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
         message={successMessage}

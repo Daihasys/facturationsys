@@ -1,25 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, Printer, XCircle, Search } from 'lucide-react';
-import SaleDetailsModal from './modals/SaleDetailsModal'; // Importar el modal
-import SuccessModal from './modals/SuccessModal'; // Importar el modal de éxito
-import SaleTicket from './SaleTicket'; // Importar el componente del ticket
+import SaleDetailsModal from '../modals/SaleDetailsModal';
+import SuccessModal from '../modals/SuccessModal';
+import ErrorModal from '../modals/ErrorModal';
+import SaleTicket from '../tickets/SaleTicket';
 import ReactDOM from 'react-dom/client';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { printThermalTicket } from '../../utils/printThermalTicket';
 
 function SalesList() {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedSaleId, setSelectedSaleId] = useState(null);
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false); // Estado para el modal de éxito
-  const [successMessage, setSuccessMessage] = useState(''); // Mensaje para el modal de éxito
-  const [searchTerm, setSearchTerm] = useState(''); // Estado para el término de búsqueda
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
+  const { token, hasPermission } = useAuth();
+
+  const getHeaders = () => ({
+    'Content-Type': 'application/json',
+    'x-auth-token': token,
+  });
 
   const fetchSales = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:4000/api/sales');
+      const response = await fetch('http://localhost:4000/api/sales', { headers: getHeaders() });
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
@@ -33,8 +44,10 @@ function SalesList() {
   };
 
   useEffect(() => {
-    fetchSales();
-  }, []);
+    if (hasPermission('sales:read')) {
+      fetchSales();
+    }
+  }, [token]);
 
   const openDetailsModal = (saleId) => {
     setSelectedSaleId(saleId);
@@ -53,6 +66,7 @@ function SalesList() {
     try {
       const response = await fetch(`http://localhost:4000/api/sales/${saleId}/void`, {
         method: 'PUT',
+        headers: getHeaders(),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -60,7 +74,7 @@ function SalesList() {
       }
       setSuccessMessage(result.message);
       setIsSuccessModalOpen(true);
-      fetchSales(); // Recargar las ventas para mostrar el estado actualizado
+      fetchSales();
     } catch (error) {
       console.error('Error voiding sale:', error);
       alert(`Error: ${error.message}`);
@@ -69,38 +83,41 @@ function SalesList() {
 
   const handlePrintTicket = async (saleId) => {
     try {
-      const response = await fetch(`http://localhost:4000/api/sales/${saleId}/ticket`);
+      // PRIMERO: Obtener info de la venta desde la lista
+      const sale = sales.find(s => s.id === saleId);
+
+      // VALIDAR ANTES de llamar al API
+      if (sale && sale.ticket_impreso && !hasPermission('sales:reprint')) {
+        setErrorMessage('Este ticket ya fue impreso.\n\nSolo usuarios con permiso de reimpresión pueden volver a imprimirlo.');
+        setIsErrorModalOpen(true);
+        return;
+      }
+
+      // AHORA SÍ: Obtener datos completos del ticket
+      const response = await fetch(`http://localhost:4000/api/sales/${saleId}/ticket`, { headers: getHeaders() });
       if (!response.ok) {
         throw new Error('Error al obtener los datos del ticket.');
       }
       const ticketData = await response.json();
 
-      const printWindow = window.open('', '_blank', 'width=600,height=800');
-      if (printWindow) {
-        printWindow.document.write('<html><head><title>Ticket de Venta</title>');
-        // Inject Tailwind CSS for styling
-        printWindow.document.write('<link href="/dist/main.css" rel="stylesheet">'); // Adjust path if necessary
-        printWindow.document.write('</head><body><div id="print-root"></div></body></html>');
-        printWindow.document.close();
+      // Imprimir ticket
+      printThermalTicket(ticketData);
 
-        // Render the React component into the new window
-        const printRoot = ReactDOM.createRoot(printWindow.document.getElementById('print-root'));
-        printRoot.render(<SaleTicket ticketData={ticketData} />);
-        
-        // Wait for content to render, then print
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-          // printWindow.close(); // Optionally close after printing
-        }, 1000); // Give it a moment to render
+      // Marcar como impreso si es la primera vez
+      if (!ticketData.ticket_impreso) {
+        await fetch(`http://localhost:4000/api/sales/${saleId}/mark-printed`, {
+          method: 'POST',
+          headers: getHeaders()
+        });
 
-      } else {
-        alert('No se pudo abrir la ventana de impresión. Por favor, deshabilita los bloqueadores de pop-ups.');
+        // Recargar lista para actualizar indicador visual
+        fetchSales();
       }
 
     } catch (error) {
       console.error('Error printing ticket:', error);
-      alert(`Error al imprimir el ticket: ${error.message}`);
+      setErrorMessage(`Error al imprimir el ticket: ${error.message}`);
+      setIsErrorModalOpen(true);
     }
   };
 
@@ -110,18 +127,24 @@ function SalesList() {
   );
 
   const getStatusChip = (status) => {
-    const displayStatus = status || 'N/A'; // Default to 'N/A' if status is null/undefined
+    const displayStatus = status || 'N/A';
     switch (displayStatus) {
       case 'Completada':
         return <span className="px-3 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">{displayStatus}</span>;
       case 'Anulada':
         return <span className="px-3 py-1 text-xs font-medium text-red-800 bg-red-100 rounded-full">{displayStatus}</span>;
-      case 'N/A':
-        return <span className="px-3 py-1 text-xs font-medium text-gray-800 bg-gray-100 rounded-full">{displayStatus}</span>;
       default:
         return <span className="px-3 py-1 text-xs font-medium text-gray-800 bg-gray-100 rounded-full">{displayStatus}</span>;
     }
   };
+
+  if (!hasPermission('sales:read')) {
+    return (
+      <div className="p-4 sm:p-6 bg-havelock-blue-50 min-h-screen flex items-center justify-center">
+        <h1 className="text-3xl font-bold text-red-500">No tienes permiso para ver esta sección.</h1>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 min-h-screen">
@@ -140,12 +163,14 @@ function SalesList() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <button
-              onClick={() => navigate('/sales')}
-              className="bg-havelock-blue-300 text-white px-4 py-2 rounded-full hover:bg-havelock-blue-400 focus:outline-none focus:ring-2 focus:ring-havelock-blue-200 focus:ring-opacity-50 w-full sm:w-auto"
-            >
-              Generar Nueva Venta
-            </button>
+            {hasPermission('sales:create') && (
+              <button
+                onClick={() => navigate('/sales')}
+                className="bg-havelock-blue-300 text-white px-4 py-2 rounded-full hover:bg-havelock-blue-400 focus:outline-none focus:ring-2 focus:ring-havelock-blue-200 focus:ring-opacity-50 w-full sm:w-auto"
+              >
+                Generar Nueva Venta
+              </button>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -173,44 +198,55 @@ function SalesList() {
                     <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">{sale.usuario_nombre}</td>
                     <td className="py-3 px-6 border-b border-havelock-blue-100 text-sm text-gray-700">${sale.total_usd.toFixed(2)}</td>
                     <td className="py-3 px-6 border-b border-havelock-blue-100 text-center">{getStatusChip(sale.estado)}</td>
-                    <td className="py-3 px-6 border-b border-havelock-blue-100 text-center text-sm font-medium">                                          <button onClick={() => openDetailsModal(sale.id)} className="text-indigo-600 hover:text-indigo-900 mr-3" title="Ver Detalles">
-                                            <Eye size={20} />
-                                          </button>
-                                          <button className="text-green-600 hover:text-green-900 mr-3" title="Imprimir Ticket">
-                                            <Printer size={20} />
-                                          </button>
-                                          {sale.estado === 'Completada' && (
-                                            <button onClick={() => handleVoidSale(sale.id)} className="text-red-600 hover:text-red-900" title="Anular Venta">
-                                              <XCircle size={20} />
-                                            </button>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    ))
-                                  ) : (
-                                    <tr>
-                                      <td colSpan="6" className="py-6 text-center text-gray-500">Aún no se han agregado ventas.</td>
-                                    </tr>
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                    
-                          <SaleDetailsModal 
-                            isOpen={isDetailsModalOpen}
-                            onClose={closeDetailsModal}
-                            saleId={selectedSaleId}
-                          />
-                    
-                          <SuccessModal 
-                            isOpen={isSuccessModalOpen}
-                            onClose={() => setIsSuccessModalOpen(false)}
-                            message={successMessage}
-                          />
-                        </div>
-                      );
-                    }
-                    
-                    export default SalesList;
-                    
+                    <td className="py-3 px-6 border-b border-havelock-blue-100 text-center text-sm font-medium">
+                      <button onClick={() => openDetailsModal(sale.id)} className="text-indigo-600 hover:text-indigo-900 mr-3" title="Ver Detalles">
+                        <Eye size={20} />
+                      </button>
+                      <button
+                        onClick={() => handlePrintTicket(sale.id)}
+                        className={`mr-3 ${sale.ticket_impreso ? 'text-gray-400 hover:text-gray-600' : 'text-green-600 hover:text-green-900'}`}
+                        title={sale.ticket_impreso ? 'Ticket ya impreso (requiere permiso de reimpresión)' : 'Imprimir Ticket'}
+                      >
+                        <Printer size={20} />
+                      </button>
+                      {hasPermission('sales:void') && sale.estado === 'Completada' && (
+                        <button onClick={() => handleVoidSale(sale.id)} className="text-red-600 hover:text-red-900" title="Anular Venta">
+                          <XCircle size={20} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="py-6 text-center text-gray-500">Aún no se han agregado ventas.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <SaleDetailsModal
+        isOpen={isDetailsModalOpen}
+        onClose={closeDetailsModal}
+        saleId={selectedSaleId}
+        onVoidSuccess={fetchSales}
+      />
+
+      <SuccessModal
+        isOpen={isSuccessModalOpen}
+        onClose={() => setIsSuccessModalOpen(false)}
+        message={successMessage}
+      />
+
+      <ErrorModal
+        isOpen={isErrorModalOpen}
+        onClose={() => setIsErrorModalOpen(false)}
+        message={errorMessage}
+      />
+    </div>
+  );
+}
+
+export default SalesList;

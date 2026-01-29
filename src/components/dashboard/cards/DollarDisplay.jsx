@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowUpRight, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, RefreshCw, Search } from 'lucide-react';
 import Modal from '../../modals/Modal';
 
-const DollarDisplay = () => {
+const DollarDisplay = ({ compact = false }) => {
   const [price, setPrice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -10,6 +10,7 @@ const DollarDisplay = () => {
   const [history, setHistory] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [searchDate, setSearchDate] = useState('');
 
   useEffect(() => {
     const fetchDollarPrice = async () => {
@@ -164,14 +165,14 @@ const DollarDisplay = () => {
 
   const renderContent = () => {
     if (loading) {
-      return <p className="text-[36px] font-semibold text-white text-right">Cargando...</p>;
+      return <p className={`${compact ? 'text-sm' : 'text-[36px]'} font-semibold text-white text-right`}>Cargando...</p>;
     }
     if (error) {
-      return <p className="text-[28px] font-semibold text-red-300 text-right">Error</p>;
+      return <p className={`${compact ? 'text-sm' : 'text-[28px]'} font-semibold text-red-300 text-right`}>Error</p>;
     }
     return (
-      <p className="text-[28px] font-semibold text-white text-right">
-        {price ? `USD 1 / Bs. ${Number(price).toFixed(2)}` : 'N/A'}
+      <p className={`${compact ? 'text-lg' : 'text-[28px]'} font-semibold text-white text-right`}>
+        {price ? `Bs. ${Number(price).toFixed(2)}` : 'N/A'}
       </p>
     );
   };
@@ -187,6 +188,119 @@ const DollarDisplay = () => {
     });
   };
 
+  // Compact version for Sales page
+  if (compact) {
+    return (
+      <>
+        <div
+          className="bg-havelock-blue-200 rounded-xl shadow p-3 flex justify-between items-center transition-all duration-300 hover:shadow-lg cursor-pointer"
+          onClick={() => setIsModalOpen(true)}
+        >
+          <span className="text-sm font-medium text-white">USD 1 =</span>
+          {renderContent()}
+          <ArrowUpRight size={16} className="text-white opacity-70" />
+        </div>
+
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => { setIsModalOpen(false); setSearchDate(''); }}
+          title="Historial de Precios del Dólar"
+        >
+          {/* Date Filter */}
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="date"
+                value={searchDate}
+                onChange={(e) => setSearchDate(e.target.value)}
+                className="w-full pl-10 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-havelock-blue-200"
+                placeholder="Buscar por fecha..."
+              />
+            </div>
+            {searchDate && (
+              <button
+                onClick={() => setSearchDate('')}
+                className="text-xs text-havelock-blue-500 mt-1 hover:underline"
+              >
+                Limpiar filtro
+              </button>
+            )}
+          </div>
+
+          {/* History Table */}
+          <div className="max-h-[240px] overflow-y-auto border rounded-lg">
+            {history.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">
+                No hay historial disponible
+              </p>
+            ) : (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      Fecha
+                    </th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                      Tasa
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {history
+                    .filter(entry => !searchDate || entry.date.includes(searchDate))
+                    .map((entry, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 text-sm text-gray-900">
+                          {formatDate(entry.date)}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-900 text-right font-medium">
+                          Bs. {entry.rate}
+                        </td>
+                      </tr>
+                    ))}
+                  {history.filter(entry => !searchDate || entry.date.includes(searchDate)).length === 0 && (
+                    <tr>
+                      <td colSpan="2" className="px-4 py-4 text-center text-gray-500 text-sm">
+                        No hay registros para esta fecha
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Messages */}
+          {successMessage && (
+            <div className="mt-3 p-2 rounded-lg bg-green-50 text-green-700 text-xs text-center">
+              {successMessage}
+            </div>
+          )}
+
+          <div className="mt-4 flex justify-between items-center">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="bg-havelock-blue-500 text-white px-4 py-2 rounded-lg hover:bg-havelock-blue-600 transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Actualizando...' : 'Refrescar'}
+            </button>
+
+            <button
+              onClick={() => { setIsModalOpen(false); setSearchDate(''); }}
+              className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+            >
+              Cerrar
+            </button>
+          </div>
+        </Modal>
+      </>
+    );
+  }
+
+  // Regular (non-compact) version for Dashboard
   return (
     <>
       <div
@@ -200,78 +314,101 @@ const DollarDisplay = () => {
             className="text-white opacity-70 hover:opacity-100 transition-opacity"
           />
         </div>
-        {renderContent()}
+        <p className="text-[28px] font-semibold text-white text-right">
+          {loading ? 'Cargando...' : error ? 'Error' : price ? `USD 1 / Bs. ${Number(price).toFixed(2)}` : 'N/A'}
+        </p>
       </div>
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => { setIsModalOpen(false); setSearchDate(''); }}
         title="Historial de Precios del Dólar"
-        size="lg"
       >
-        <div className="overflow-hidden">
+        {/* Date Filter */}
+        <div className="mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="date"
+              value={searchDate}
+              onChange={(e) => setSearchDate(e.target.value)}
+              className="w-full pl-10 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-havelock-blue-200"
+              placeholder="Buscar por fecha..."
+            />
+          </div>
+          {searchDate && (
+            <button
+              onClick={() => setSearchDate('')}
+              className="text-xs text-havelock-blue-500 mt-1 hover:underline"
+            >
+              Limpiar filtro
+            </button>
+          )}
+        </div>
+
+        {/* History Table */}
+        <div className="max-h-[240px] overflow-y-auto border rounded-lg">
           {history.length === 0 ? (
             <p className="text-center text-gray-500 py-8">
               No hay historial disponible
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Fecha
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tasa de Cambio
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {history.map((entry, index) => (
-                    <tr
-                      key={index}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Fecha
+                  </th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                    Tasa
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {history
+                  .filter(entry => !searchDate || entry.date.includes(searchDate))
+                  .map((entry, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 text-sm text-gray-900">
                         {formatDate(entry.date)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
+                      <td className="px-4 py-2 text-sm text-gray-900 text-right font-medium">
                         Bs. {entry.rate}
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                {history.filter(entry => !searchDate || entry.date.includes(searchDate)).length === 0 && (
+                  <tr>
+                    <td colSpan="2" className="px-4 py-4 text-center text-gray-500 text-sm">
+                      No hay registros para esta fecha
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           )}
         </div>
 
         {/* Messages */}
         {successMessage && (
-          <div className="mt-4 p-3 rounded-lg bg-green-50 text-green-700 text-sm text-center">
+          <div className="mt-3 p-2 rounded-lg bg-green-50 text-green-700 text-xs text-center">
             {successMessage}
           </div>
         )}
-        {error && (
-          <div className="mt-4 p-3 rounded-lg bg-yellow-50 text-yellow-700 text-sm text-center">
-            ℹ {error}
-          </div>
-        )}
 
-        <div className="mt-6 flex justify-between items-center">
+        <div className="mt-4 flex justify-between items-center">
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="bg-havelock-blue-500 text-white px-5 py-2.5 rounded-lg hover:bg-havelock-blue-600 transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-havelock-blue-500 text-white px-4 py-2 rounded-lg hover:bg-havelock-blue-600 transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Actualizando...' : 'Refrescar Tasa'}
+            {refreshing ? 'Actualizando...' : 'Refrescar'}
           </button>
 
           <button
-            onClick={() => setIsModalOpen(false)}
-            className="bg-gray-200 text-gray-800 px-5 py-2.5 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+            onClick={() => { setIsModalOpen(false); setSearchDate(''); }}
+            className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
           >
             Cerrar
           </button>

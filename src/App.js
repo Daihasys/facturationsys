@@ -14,6 +14,7 @@ import Login from "./components/auth/Login";
 import PasswordRecovery from "./components/auth/PasswordRecovery";
 import Settings from "./components/pages/Settings";
 import ErrorReports from "./components/pages/ErrorReports";
+import Offers from "./components/pages/Offers";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useAuth } from "./context/AuthContext";
 import "./index.css";
@@ -65,6 +66,7 @@ const App = () => {
             <Route path="roles" element={<Roles />} />
             <Route path="settings" element={<Settings />} />
             <Route path="error-reports" element={<ErrorReports />} />
+            <Route path="offers" element={<Offers />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Route>
         </Routes>

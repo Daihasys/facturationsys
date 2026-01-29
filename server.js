@@ -1,4 +1,15 @@
-require('dotenv').config();
+// Detect if running inside packaged Electron app (inside app.asar)
+const isPackaged = __dirname.includes('app.asar');
+
+// Configure dotenv with correct path
+if (isPackaged) {
+  // In packaged mode, .env is in resources folder
+  const resourcesPath = process.resourcesPath || require('path').dirname(__dirname.replace('app.asar', ''));
+  require('dotenv').config({ path: require('path').join(resourcesPath, '.env') });
+} else {
+  require('dotenv').config();
+}
+
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
 const cors = require("cors");
@@ -19,7 +30,60 @@ app.use(express.json({ limit: '10mb' }));
 
 // --- Database Connection ---
 let db; // Use let to allow reopening
-const dbPath = path.resolve(__dirname, "database/facturacion.db");
+
+// In packaged mode, database is inside app.asar which is read-only
+// We copy it to a 'data' folder in the installation directory (same folder as the .exe)
+let dbPath;
+let appInstallDir; // Store this for later use (backups)
+
+if (isPackaged) {
+  // Get the installation directory (where the .exe is located)
+  // process.resourcesPath points to /resources, go up one level to get install dir
+  appInstallDir = path.dirname(process.resourcesPath);
+
+  // Create 'data' folder in installation directory
+  const dataDir = path.join(appInstallDir, 'data');
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+
+  dbPath = path.join(dataDir, 'facturacion.db');
+
+  // Copy database from app.asar.unpacked to data folder if it doesn't exist
+  if (!fs.existsSync(dbPath)) {
+    // The database should be in app.asar.unpacked due to asarUnpack config
+    const unpackedPath = __dirname.replace('app.asar', 'app.asar.unpacked');
+    const sourceDb = path.join(unpackedPath, 'database', 'facturacion.db');
+
+    // Also try the original path (inside asar, for fallback)
+    const asarSourceDb = path.join(__dirname, 'database', 'facturacion.db');
+
+    let sourceToCopy = null;
+    if (fs.existsSync(sourceDb)) {
+      sourceToCopy = sourceDb;
+    } else if (fs.existsSync(asarSourceDb)) {
+      sourceToCopy = asarSourceDb;
+    }
+
+    if (sourceToCopy) {
+      try {
+        fs.copyFileSync(sourceToCopy, dbPath);
+        console.log('[Server] Database copied to:', dbPath);
+      } catch (err) {
+        console.error('[Server] Error copying database:', err.message);
+      }
+    } else {
+      console.error('[Server] No source database found!');
+    }
+  }
+
+  console.log('[Server] Running in packaged mode');
+  console.log('[Server] Install directory:', appInstallDir);
+  console.log('[Server] Database path:', dbPath);
+} else {
+  appInstallDir = __dirname; // For development
+  dbPath = path.resolve(__dirname, "database/facturacion.db");
+}
 
 function connectToDatabase() {
   db = new sqlite3.Database(dbPath, (err) => {
@@ -120,7 +184,13 @@ function initializeDatabase() {
 initializeDatabase();
 
 // --- Backup Logic ---
-const backupDir = path.resolve(__dirname, "database/backups");
+// Use 'data/backups' folder in installation directory for packaged mode
+let backupDir;
+if (isPackaged) {
+  backupDir = path.join(appInstallDir, 'data', 'backups');
+} else {
+  backupDir = path.resolve(__dirname, "database/backups");
+}
 if (!fs.existsSync(backupDir)) {
   fs.mkdirSync(backupDir, { recursive: true });
 }
@@ -2157,7 +2227,202 @@ app.get("/api/error-reports/:id", (req, res) => {
   });
 });
 
+// --- Offers (Ofertas) Endpoints ---
+
+// Get all offers with product info
+app.get("/api/offers", (req, res) => {
+  const sql = `
+    SELECT o.*, p.nombre as producto_nombre, p.precio_venta as precio_original
+    FROM ofertas o
+    JOIN productos p ON o.producto_id = p.id
+    ORDER BY o.fecha_fin DESC
+  `;
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      console.error("Error fetching offers:", err.message);
+      return res.status(500).json({ error: "Error al obtener las ofertas." });
+    }
+    res.json(rows);
+  });
+});
+
+// Get active offers (current date within range)
+app.get("/api/offers/active", (req, res) => {
+  const sql = `
+    SELECT o.*, p.nombre as producto_nombre, p.precio_venta as precio_original
+    FROM ofertas o
+    JOIN productos p ON o.producto_id = p.id
+    WHERE o.activo = 1 
+      AND date('now') >= date(o.fecha_inicio) 
+      AND date('now') <= date(o.fecha_fin)
+    ORDER BY o.fecha_fin DESC
+  `;
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      console.error("Error fetching active offers:", err.message);
+      return res.status(500).json({ error: "Error al obtener las ofertas activas." });
+    }
+    res.json(rows);
+  });
+});
+
+// Create new offer
+app.post("/api/offers", (req, res) => {
+  const { producto_id, precio_oferta, fecha_inicio, fecha_fin } = req.body;
+
+  if (!producto_id || !precio_oferta || !fecha_inicio || !fecha_fin) {
+    return res.status(400).json({ error: "Todos los campos son obligatorios." });
+  }
+
+  // First, get the product price to validate offer price
+  db.get(`SELECT precio_venta FROM productos WHERE id = ?`, [producto_id], (prodErr, product) => {
+    if (prodErr) {
+      console.error("Error fetching product:", prodErr.message);
+      return res.status(500).json({ error: "Error al verificar el producto." });
+    }
+
+    if (!product) {
+      return res.status(404).json({ error: "Producto no encontrado." });
+    }
+
+    // Validate offer price is less than original price
+    if (parseFloat(precio_oferta) >= product.precio_venta) {
+      return res.status(400).json({
+        error: `El precio de oferta ($${precio_oferta}) debe ser menor al precio original ($${product.precio_venta.toFixed(2)}).`
+      });
+    }
+
+    // Check if product already has active offer in overlapping date range
+    const checkSql = `
+      SELECT id FROM ofertas 
+      WHERE producto_id = ? 
+        AND activo = 1
+        AND (
+          (date(?) BETWEEN date(fecha_inicio) AND date(fecha_fin))
+          OR (date(?) BETWEEN date(fecha_inicio) AND date(fecha_fin))
+          OR (date(fecha_inicio) BETWEEN date(?) AND date(?))
+        )
+    `;
+
+    db.get(checkSql, [producto_id, fecha_inicio, fecha_fin, fecha_inicio, fecha_fin], (checkErr, existing) => {
+      if (checkErr) {
+        console.error("Error checking offers:", checkErr.message);
+        return res.status(500).json({ error: "Error al verificar ofertas existentes." });
+      }
+
+      if (existing) {
+        return res.status(400).json({ error: "Este producto ya tiene una oferta activa en ese rango de fechas." });
+      }
+
+      const sql = `INSERT INTO ofertas (producto_id, precio_oferta, fecha_inicio, fecha_fin, activo) VALUES (?, ?, ?, ?, 1)`;
+      db.run(sql, [producto_id, precio_oferta, fecha_inicio, fecha_fin], function (err) {
+        if (err) {
+          console.error("Error creating offer:", err.message);
+          return res.status(500).json({ error: "Error al crear la oferta." });
+        }
+        res.status(201).json({ message: "Oferta creada exitosamente.", offerId: this.lastID });
+        createAuditLog(1, "Oferta Creada", { offerId: this.lastID, producto_id, precio_oferta });
+      });
+    });
+  });
+});
+
+// Update offer
+app.put("/api/offers/:id", (req, res) => {
+  const { id } = req.params;
+  const { precio_oferta, fecha_inicio, fecha_fin, activo } = req.body;
+
+  // Get offer with product price to validate
+  const getOfferSql = `
+    SELECT o.producto_id, p.precio_venta 
+    FROM ofertas o 
+    JOIN productos p ON o.producto_id = p.id 
+    WHERE o.id = ?
+  `;
+
+  db.get(getOfferSql, [id], (getErr, offerData) => {
+    if (getErr) {
+      console.error("Error fetching offer:", getErr.message);
+      return res.status(500).json({ error: "Error al verificar la oferta." });
+    }
+
+    if (!offerData) {
+      return res.status(404).json({ error: "Oferta no encontrada." });
+    }
+
+    // Validate offer price is less than original price
+    if (parseFloat(precio_oferta) >= offerData.precio_venta) {
+      return res.status(400).json({
+        error: `El precio de oferta ($${precio_oferta}) debe ser menor al precio original ($${offerData.precio_venta.toFixed(2)}).`
+      });
+    }
+
+    const sql = `UPDATE ofertas SET precio_oferta = ?, fecha_inicio = ?, fecha_fin = ?, activo = ? WHERE id = ?`;
+    db.run(sql, [precio_oferta, fecha_inicio, fecha_fin, activo ? 1 : 0, id], function (err) {
+      if (err) {
+        console.error("Error updating offer:", err.message);
+        return res.status(500).json({ error: "Error al actualizar la oferta." });
+      }
+      res.json({ message: "Oferta actualizada exitosamente." });
+      createAuditLog(1, "Oferta Actualizada", { offerId: id });
+    });
+  });
+});
+
+// Delete offer
+app.delete("/api/offers/:id", (req, res) => {
+  const { id } = req.params;
+
+  db.run(`DELETE FROM ofertas WHERE id = ?`, [id], function (err) {
+    if (err) {
+      console.error("Error deleting offer:", err.message);
+      return res.status(500).json({ error: "Error al eliminar la oferta." });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: "Oferta no encontrada." });
+    }
+    res.json({ message: "Oferta eliminada exitosamente." });
+    createAuditLog(1, "Oferta Eliminada", { offerId: id });
+  });
+});
+
+// Get products with their active offers (for sales module and tickets)
+app.get("/api/products/with-offers", (req, res) => {
+  const sql = `
+    SELECT 
+      p.id, 
+      p.nombre as name, 
+      p.descripcion as description, 
+      p.precio_costo, 
+      p.precio_venta, 
+      p.barcode, 
+      p.categoria, 
+      p.image_url,
+      o.precio_oferta,
+      o.fecha_inicio,
+      o.fecha_fin,
+      CASE WHEN o.id IS NOT NULL AND o.activo = 1 
+           AND date('now') >= date(o.fecha_inicio) 
+           AND date('now') <= date(o.fecha_fin) 
+      THEN 1 ELSE 0 END as tiene_oferta
+    FROM productos p
+    LEFT JOIN ofertas o ON p.id = o.producto_id 
+      AND o.activo = 1 
+      AND date('now') >= date(o.fecha_inicio) 
+      AND date('now') <= date(o.fecha_fin)
+    ORDER BY p.id DESC
+  `;
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      console.error("Error fetching products with offers:", err.message);
+      return res.status(500).json({ error: "Error al obtener los productos." });
+    }
+    res.json(rows);
+  });
+});
+
 // Start server
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
+

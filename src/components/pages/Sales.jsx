@@ -4,6 +4,7 @@ import SaleSuccessModal from '../modals/SaleSuccessModal';
 import ErrorModal from '../modals/ErrorModal';
 import { printThermalTicket } from '../../utils/printThermalTicket';
 import { useAuth } from '../../context/AuthContext';
+import DollarDisplay from '../dashboard/cards/DollarDisplay';
 
 function Sales() {
   const { token } = useAuth();
@@ -26,7 +27,8 @@ function Sales() {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('http://localhost:4000/api/products', {
+      // Use endpoint that includes offer information
+      const response = await fetch('http://localhost:4000/api/products/with-offers', {
         headers: getHeaders()
       });
       if (!response.ok) {
@@ -81,19 +83,29 @@ function Sales() {
           item.id === product.id ? { ...item, quantity: newQuantity } : item
         ));
       } else {
-        setCart([...cart, { ...product, price: product.precio_venta, quantity: newQuantity }]);
+        const effectivePrice = getEffectivePrice(product);
+        setCart([...cart, { ...product, price: effectivePrice, quantity: newQuantity }]);
       }
     }
   };
 
+  // Helper to get effective price (offer price if active, otherwise regular price)
+  const getEffectivePrice = (product) => {
+    if (product.tiene_oferta && product.precio_oferta) {
+      return product.precio_oferta;
+    }
+    return product.precio_venta;
+  };
+
   const incrementQuantity = (product) => {
     const existingItem = cart.find(item => item.id === product.id);
+    const effectivePrice = getEffectivePrice(product);
     if (existingItem) {
       setCart(cart.map(item =>
         item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
       ));
     } else {
-      setCart([...cart, { ...product, price: product.precio_venta, quantity: 1 }]);
+      setCart([...cart, { ...product, price: effectivePrice, quantity: 1 }]);
     }
   };
 
@@ -190,7 +202,12 @@ function Sales() {
         onKeyDown={handleBarcodeScan}
         style={{ position: 'absolute', left: '-9999px' }}
       />
-      <h1 className="text-5xl font-bold text-gray-800 mb-8 ml-4">Módulo de Ventas</h1>
+      <div className="flex justify-between items-center mb-8 ml-4">
+        <h1 className="text-5xl font-bold text-gray-800">Módulo de Ventas</h1>
+        <div className="w-72" onClick={(e) => e.stopPropagation()}>
+          <DollarDisplay compact />
+        </div>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Product List */}
         <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-lg flex flex-col h-[86vh] transition-all duration-300 hover:shadow-[0px_0px_18px_0px_#696969]">
@@ -228,7 +245,15 @@ function Sales() {
                       )}
                     </div>
                     <h3 className="font-semibold text-sm mb-1">{product.name}</h3>
-                    <p className="text-gray-500 text-xs mb-3">${product.precio_venta.toFixed(2)}</p>
+                    {product.tiene_oferta ? (
+                      <div className="mb-3">
+                        <span className="text-gray-400 text-xs line-through mr-2">${product.precio_venta.toFixed(2)}</span>
+                        <span className="text-green-600 text-sm font-bold">${product.precio_oferta?.toFixed(2)}</span>
+                        <span className="ml-2 bg-red-500 text-white text-xs px-1 py-0.5 rounded">OFERTA</span>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-xs mb-3">${product.precio_venta.toFixed(2)}</p>
+                    )}
                     <div className="mt-auto">
                       <div className="flex items-center justify-center space-x-2">
                         <button onClick={() => decrementQuantity(product)} className="bg-havelock-blue-400 text-white rounded-full w-7 h-7 flex items-center justify-center hover:bg-havelock-blue-500 transition-colors">

@@ -11,6 +11,7 @@ import {
   DatabaseBackup,
   LayoutGrid,
   Bug,
+  Tag,
 } from 'lucide-react';
 
 function Layout() {
@@ -46,6 +47,14 @@ function Layout() {
           active={isActive('/categories')}
           onClick={() => navigate('/categories')}
           requiredPermission="categories:read"
+        />
+        <SidebarItem
+          icon={<Tag size={20} />}
+          text="Ofertas"
+          to="/offers"
+          active={isActive('/offers')}
+          onClick={() => navigate('/offers')}
+          requiredPermission="offers:read"
         />
         <SidebarDropdown
           icon={<ShoppingCart size={20} />}

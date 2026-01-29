@@ -23,22 +23,26 @@ const ProductTicketReport = ({ showSuccessModal, showErrorModal }) => {
   const [bolivarConversionRate, setBolivarConversionRate] = useState(35.0);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
-  // Fetch products from backend
+  // Fetch products with offers from backend
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch('http://localhost:4000/api/reports/products');
+        // Use endpoint that includes offer information
+        const response = await fetch('http://localhost:4000/api/products/with-offers');
         if (response.ok) {
           const data = await response.json();
-          // Add selection and offer fields
+          // Add selection and offer fields - pre-populate with active offers from DB
           const productsWithState = data.map(p => ({
             ...p,
             price: p.precio_venta || 0,
             category: p.categoria || 'Sin categoría',
             isSelected: false,
-            isOffer: false,
-            offerValue: '',
-            discountPercentage: ''
+            // If product has active offer in DB, pre-populate offer fields
+            isOffer: p.tiene_oferta === 1,
+            offerValue: p.tiene_oferta === 1 ? p.precio_oferta?.toString() : '',
+            discountPercentage: p.tiene_oferta === 1
+              ? Math.round(((p.precio_venta - p.precio_oferta) / p.precio_venta) * 100).toString()
+              : ''
           }));
           setProducts(productsWithState);
         }

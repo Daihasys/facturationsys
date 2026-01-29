@@ -95,8 +95,11 @@
     },
     "files": [
       "main.js",
+      "preload.js",
       "server.js",
+      "index.html",
       "dist/**/*",
+      "src/print.css",
       "database/**/*",
       "utils/**/*",
       "node_modules/**/*",
@@ -108,6 +111,11 @@
         "from": ".env",
         "to": ".env"
       }
+    ],
+    "asarUnpack": [
+      "database/**/*",
+      "node_modules/sqlite3/**/*",
+      "node_modules/bcrypt/**/*"
     ]
   }
 }
